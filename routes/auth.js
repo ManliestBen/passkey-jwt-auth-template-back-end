@@ -7,6 +7,7 @@ const router = Router()
 /*---------- Public Routes ----------*/
 router.post('/signup', authCtrl.signup)
 router.post('/login', authCtrl.login)
+router.post('/generate-registration-options', authCtrl.generateRegistrationOptionsResponse)
 
 /*---------- Protected Routes ----------*/
 router.use(decodeUserFromToken)

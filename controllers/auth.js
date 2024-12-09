@@ -2,6 +2,8 @@ import jwt from 'jsonwebtoken'
 
 import { User } from '../models/user.js'
 import { Profile } from '../models/profile.js'
+import { Credential } from '../models/credential.js'
+import { generateAuthenticationOptions, generateRegistrationOptions } from '@simplewebauthn/server'
 
 async function signup(req, res) {
   try {
@@ -66,6 +68,42 @@ async function changePassword(req, res) {
   }
 }
 
+async function generateRegistrationOptionsResponse(req, res) {
+  let user = await User.findOne({email: req.body.email})
+  if (!user) {
+    // user doesn't exist, create a new one
+    const newProfile = await Profile.create(req.body)
+    req.body.profile = newProfile._id
+    user = await User.create(req.body)
+  }
+  const credentials = await Credential.find({userId: user._id})
+  const opts = {
+    rpName: process.env.RP_NAME,
+    rpID: process.env.RP_ID,
+    userName: user.name,
+    timeout: 60000,
+    attestationType: 'none',
+    excludeCredentials: credentials.map((cred) => ({
+      id: cred.publicKey,
+      type: 'public-key',
+      transports: cred.transports,
+    })),
+    authenticatorSelection: {
+      residentKey: 'preferred',
+      userVerification: 'preferred',
+      // authenticatorAttachment: 'platform'
+    },
+    supportedAlgorithmIDs: [-7, -257],
+  }
+
+  const options = await generateRegistrationOptions(opts)
+
+  req.session.currentChallenge = options.challenge
+
+  res.send(options)
+} 
+
+
 /* --== Helper Functions ==-- */
 
 function handleAuthError(err, res) {
@@ -82,4 +120,4 @@ function createJWT(user) {
   return jwt.sign({ user }, process.env.SECRET, { expiresIn: '24h' })
 }
 
-export { signup, login, changePassword }
+export { signup, login, changePassword, generateRegistrationOptionsResponse }
