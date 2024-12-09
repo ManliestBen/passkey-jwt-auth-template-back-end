@@ -6,9 +6,6 @@ import { Profile } from '../models/profile.js'
 async function signup(req, res) {
   try {
     if (!process.env.SECRET) throw new Error('no SECRET in back-end .env')
-    if (!process.env.CLOUDINARY_URL) {
-      throw new Error('no CLOUDINARY_URL in back-end .env file')
-    }
 
     const user = await User.findOne({ email: req.body.email })
     if (user) throw new Error('Account already exists')
@@ -36,9 +33,6 @@ async function signup(req, res) {
 async function login(req, res) {
   try {
     if (!process.env.SECRET) throw new Error('no SECRET in back-end .env')
-    if (!process.env.CLOUDINARY_URL) {
-      throw new Error('no CLOUDINARY_URL in back-end .env')
-    }
 
     const user = await User.findOne({ email: req.body.email })
     if (!user) throw new Error('User not found')
