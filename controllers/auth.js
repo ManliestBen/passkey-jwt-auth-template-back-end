@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import { User } from '../models/user.js'
 import { Profile } from '../models/profile.js'
 import { Credential } from '../models/credential.js'
-import { generateAuthenticationOptions, generateRegistrationOptions } from '@simplewebauthn/server'
+import { generateAuthenticationOptions, generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server'
 
 async function signup(req, res) {
   try {
@@ -84,7 +84,7 @@ async function generateRegistrationOptionsResponse(req, res) {
     timeout: 60000,
     attestationType: 'none',
     excludeCredentials: credentials.map((cred) => ({
-      id: cred.publicKey,
+      id: cred.id,
       type: 'public-key',
       transports: cred.transports,
     })),
@@ -97,11 +97,39 @@ async function generateRegistrationOptionsResponse(req, res) {
   }
 
   const options = await generateRegistrationOptions(opts)
+  // options.userId = user._id
+
+  user.currentChallenge = options.challenge
+  user.webAuthId = options.user.id
+
+  await user.save()
 
   req.session.currentChallenge = options.challenge
 
   res.send(options)
-} 
+}
+
+async function verifyRegistration(req, res)  {
+  const user = await User.findOne({ webAuthId: req.body.webAuthId })
+  let verification
+  console.log(user)
+  try {
+    const opts = {
+      response: req.body,
+      expectedChallenge: user.currentChallenge,
+      expectedOrigin: process.env.FRONT_END_ORIGIN,
+      expectedRPID: process.env.RP_ID,
+      requireUserVerification: false,
+    }
+    verification = await verifyRegistrationResponse(opts)
+    const { registrationInfo } = verification;
+    const { credential, credentialDeviceType, credentialBackedUp } = registrationInfo
+    console.log(credential.publicKey)
+    res.json(verification)
+  } catch (err) {
+    console.log(err)
+  }
+}
 
 
 /* --== Helper Functions ==-- */
@@ -120,4 +148,4 @@ function createJWT(user) {
   return jwt.sign({ user }, process.env.SECRET, { expiresIn: '24h' })
 }
 
-export { signup, login, changePassword, generateRegistrationOptionsResponse }
+export { signup, login, changePassword, generateRegistrationOptionsResponse, verifyRegistration }

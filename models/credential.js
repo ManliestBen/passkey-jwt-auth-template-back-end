@@ -3,6 +3,7 @@ import mongoose from 'mongoose'
 const Schema = mongoose.Schema
 
 const credentialSchema = new Schema({
+  id: String,
   userId: {type: Schema.Types.ObjectId, ref: 'User'},
   publicKey: String,
   type: String,

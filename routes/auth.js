@@ -8,6 +8,7 @@ const router = Router()
 router.post('/signup', authCtrl.signup)
 router.post('/login', authCtrl.login)
 router.post('/generate-registration-options', authCtrl.generateRegistrationOptionsResponse)
+router.post('/verify-registration', authCtrl.verifyRegistration)
 
 /*---------- Protected Routes ----------*/
 router.use(decodeUserFromToken)
