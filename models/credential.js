@@ -3,12 +3,14 @@ import mongoose from 'mongoose'
 const Schema = mongoose.Schema
 
 const credentialSchema = new Schema({
-  id: String,
+  credId: String,
   userId: {type: Schema.Types.ObjectId, ref: 'User'},
   publicKey: String,
   type: String,
   transports: [String],
-  counter: {type: Number, default: 0}
+  counter: {type: Number, default: 0},
+  aaguId: String,
+  attestationType: {type: String, enum: ['direct', 'indirect', 'none']}
 },{
   timestamps: true,
 })

@@ -125,7 +125,22 @@ async function verifyRegistration(req, res)  {
     const { registrationInfo } = verification;
     const { credential, credentialDeviceType, credentialBackedUp } = registrationInfo
     console.log(credential.publicKey)
-    res.json(verification)
+    console.log(verification)
+    // consider adding code here to delete the user/profile if registration is not validated
+    const newCredential = Credential.create({
+      credId: registrationInfo.credential.id,
+      userId: user._id,
+      publicKey: registrationInfo.credential.publicKey,
+      type: registrationInfo.credentialType,
+      transports: registrationInfo.credential.transports,
+      counter: registrationInfo.credential.counter + 1,
+      aaguId: registrationInfo.aaguid,
+      attestationType: registrationInfo.fmt
+    })
+    user.currentChallenge = null
+    await user.save()
+    const token = createJWT(user)
+    res.status(200).json({ token })
   } catch (err) {
     console.log(err)
   }
