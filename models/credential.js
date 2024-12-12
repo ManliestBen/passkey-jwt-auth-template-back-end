@@ -5,7 +5,7 @@ const Schema = mongoose.Schema
 const credentialSchema = new Schema({
   credId: String,
   userId: {type: Schema.Types.ObjectId, ref: 'User'},
-  publicKey: String,
+  publicKey: [Number],
   type: String,
   transports: [String],
   counter: {type: Number, default: 0},

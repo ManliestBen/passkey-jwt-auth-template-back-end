@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken'
 import { User } from '../models/user.js'
 import { Profile } from '../models/profile.js'
 import { Credential } from '../models/credential.js'
-import { generateAuthenticationOptions, generateRegistrationOptions, verifyRegistrationResponse } from '@simplewebauthn/server'
+import { generateAuthenticationOptions, generateRegistrationOptions, verifyAuthenticationResponse, verifyRegistrationResponse } from '@simplewebauthn/server'
 
 async function signup(req, res) {
   try {
@@ -69,6 +69,7 @@ async function changePassword(req, res) {
 }
 
 async function generateRegistrationOptionsResponse(req, res) {
+  // add edge cases to handle a user registering an additional key
   let user = await User.findOne({email: req.body.email})
   if (!user) {
     // user doesn't exist, create a new one
@@ -80,7 +81,7 @@ async function generateRegistrationOptionsResponse(req, res) {
   const opts = {
     rpName: process.env.RP_NAME,
     rpID: process.env.RP_ID,
-    userName: user.name,
+    userName: user.email,
     timeout: 60000,
     attestationType: 'none',
     excludeCredentials: credentials.map((cred) => ({
@@ -104,7 +105,7 @@ async function generateRegistrationOptionsResponse(req, res) {
 
   await user.save()
 
-  req.session.currentChallenge = options.challenge
+  // req.session.currentChallenge = options.challenge
 
   res.send(options)
 }
@@ -130,17 +131,81 @@ async function verifyRegistration(req, res)  {
     const newCredential = Credential.create({
       credId: registrationInfo.credential.id,
       userId: user._id,
-      publicKey: registrationInfo.credential.publicKey,
+      publicKey: Array.from(registrationInfo.credential.publicKey),
       type: registrationInfo.credentialType,
       transports: registrationInfo.credential.transports,
-      counter: registrationInfo.credential.counter + 1,
+      counter: registrationInfo.credential.counter,
       aaguId: registrationInfo.aaguid,
       attestationType: registrationInfo.fmt
     })
     user.currentChallenge = null
     await user.save()
-    const token = createJWT(user)
-    res.status(200).json({ token })
+    if (verification.verified) {
+      const token = createJWT(user)
+      res.status(200).json({ token })
+    } else {
+      throw new Error("Verification failed")
+    }
+  } catch (err) {
+    console.log(err)
+  }
+}
+
+async function generateAuthenticationOptionsResponse(req, res) {
+  try {
+    console.log(req.body)
+    const user = await User.findOne({ email: req.body.email })
+    console.log(user)
+    const userPasskeys = Credential.find({ userId: user._id })
+    const options = await generateAuthenticationOptions({
+      rpId: process.env.RP_ID,
+      allowCredentials: (await userPasskeys).map(passkey => ({
+        id: passkey.credId,
+        transports: passkey.transports
+      }))
+    })
+
+    user.currentChallenge = options.challenge
+    
+    await user.save()
+    
+    console.log(options)
+    
+    res.send(options)
+  } catch (err) {
+    console.log(err)
+  }
+}
+
+async function verifyAuthentication(req, res) {
+  const user = await User.findOne({ email: req.body.email })
+  console.log(user)
+  const passkey = await Credential.findOne({ credId: req.body.id })
+  console.log(passkey)
+  if (!passkey) {
+    throw new Error(`Could not find passkey ${req.body.id} for user ${user._id}`);
+  }
+  let verification
+  try {
+    verification = await verifyAuthenticationResponse({
+      response: req.body,
+      expectedChallenge: user.currentChallenge,
+      expectedOrigin: process.env.FRONT_END_ORIGIN,
+      expectedRPID: process.env.RP_ID,
+      credential: {
+        id: passkey.credId,
+        publicKey: new Uint8Array(passkey.publicKey),
+        counter: passkey.counter,
+        transports: passkey.transports
+      }
+    })
+    console.log(verification)
+    if (verification.verified) {
+      const token = createJWT(user)
+      res.status(200).json({ token })
+    } else {
+      throw new Error("Verification failed")
+    }
   } catch (err) {
     console.log(err)
   }
@@ -163,4 +228,4 @@ function createJWT(user) {
   return jwt.sign({ user }, process.env.SECRET, { expiresIn: '24h' })
 }
 
-export { signup, login, changePassword, generateRegistrationOptionsResponse, verifyRegistration }
+export { signup, login, changePassword, generateRegistrationOptionsResponse, verifyRegistration, generateAuthenticationOptionsResponse, verifyAuthentication }
